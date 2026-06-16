@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - QDRANT_HOST=https://YOUR_CLUSTER_ID.us-east.aws.cloud.qdrant.io:6333
+      - QDRANT_API_KEY=YOUR_ACTUAL_QDRANT_API_KEY
+    restart: always
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
