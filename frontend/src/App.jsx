@@ -8,8 +8,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [sessionId, setSessionId] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  // Generates a bulletproof session ID fallback string that never crashes on local dev servers
+  // Generate an atomic session identity string safe across all browser networks
   useEffect(() => {
     const generateSafeId = () => {
       return Math.random().toString(36).substring(2, 15) + 
@@ -18,15 +19,15 @@ function App() {
     setSessionId(generateSafeId());
   }, []);
 
-  // Automatically shifts between localhost (testing) and your EC2 Public IP (production)
   const API_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:8000' 
     : `http://${window.location.hostname}:8000`;
 
-  const handleUpload = async () => {
+  // Action 1: Upload Raw Text Snippets
+  const handleTextUpload = async () => {
     if (!text.trim()) return;
     setUploading(true);
-    setMessage('Processing & vectorizing text...');
+    setMessage('Vectorizing context parameters...');
     try {
       const res = await fetch(`${API_URL}/upload`, {
         method: 'POST',
@@ -35,18 +36,49 @@ function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage('✨ Context successfully isolated to your current session!');
+        setMessage('✨ Context successfully vectorized and isolated to your current session!');
         setText('');
       } else {
-        setMessage(`❌ Error: ${data.detail || 'Failed to upload'}`);
+        setMessage(`❌ Error: ${data.detail || 'Failed to parse inputs.'}`);
       }
     } catch (err) {
-      setMessage('❌ Error connecting to backend server.');
+      setMessage('❌ Error communicating with the server pipeline.');
     } finally {
       setUploading(false);
     }
   };
 
+  // Action 2: Upload Raw Binary PDF Files
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+    setUploading(true);
+    setMessage('Parsing PDF pages & extraction layers...');
+    
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('session_id', sessionId);
+
+    try {
+      const res = await fetch(`${API_URL}/upload-file`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage(`✨ Successfully vectorized and indexed file metadata context!`);
+        setSelectedFile(null);
+        document.getElementById("filePicker").value = "";
+      } else {
+        setMessage(`❌ Error: ${data.detail || 'Failed to extract content.'}`);
+      }
+    } catch (err) {
+      setMessage('❌ Connection to document server failed.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Action 3: RAG Synthesis Pipeline Execution
   const handleSearch = async () => {
     if (!query.trim()) return;
     setLoading(true);
@@ -63,53 +95,79 @@ function App() {
           sources: data.sources || []
         });
       } else {
-        alert(`Backend Error: ${data.detail}`);
+        alert(`Core Failure Response: ${data.detail}`);
       }
     } catch (err) {
-      alert('Error fetching answers from backend.');
+      alert('Error extracting target query matrix.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', padding: '40px 20px', fontFamily: '"Inter", system-ui, -apple-system, sans-serif', color: '#1e293b' }}>
+    <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', padding: '40px 20px', fontFamily: '"Inter", system-ui, sans-serif', color: '#1e293b' }}>
       <div style={{ maxWidth: '750px', margin: '0 auto' }}>
         
         {/* Header Block */}
         <header style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: '800', tracking: '-0.025em', color: '#0f172a', margin: '0 0 8px 0' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0', letterSpacing: '-0.025em' }}>
             ⚡ Light-RAG Sandbox
           </h1>
           <p style={{ fontSize: '15px', color: '#64748b', margin: 0, fontWeight: '500' }}>
             Gemini 2.5 Flash + Qdrant Cloud Cluster Engine
           </p>
           <div style={{ display: 'inline-block', marginTop: '14px', padding: '6px 12px', backgroundColor: '#e2e8f0', borderRadius: '20px', fontSize: '12px', fontWeight: '600', color: '#475569' }}>
-            Session Active: <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>{sessionId ? sessionId.substring(0, 8) + '...' : 'initializing'}</span>
+            Active Sandbox Token: <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>{sessionId ? sessionId.substring(0, 8) + '...' : 'initializing'}</span>
           </div>
         </header>
 
-        {/* Section 1: Data Ingestion Card */}
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '28px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', marginBottom: '28px' }}>
+        {/* Card 1: Dynamic Data Ingestion Matrix */}
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '28px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '28px' }}>
           <h3 style={{ marginTop: 0, fontSize: '18px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
             1. Ingest Factual Context
           </h3>
           <p style={{ fontSize: '13px', color: '#64748b', marginTop: 0, marginBottom: '16px' }}>
-            Every browser tab fresh-start builds an isolated environment. Data inputted here is completely secure to this tab session.
+            Every browser tab fresh-start builds an isolated environment. Choose to input raw text snippets OR upload an entire document.
           </p>
+          
           <textarea 
-            style={{ width: '100%', height: '110px', padding: '14px', boxSizing: 'border-box', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', lineHeight: '1.5', outline: 'none', transition: 'border-color 0.2s', fontFamily: 'inherit' }} 
+            style={{ width: '100%', height: '90px', padding: '14px', boxSizing: 'border-box', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', marginBottom: '12px', resize: 'vertical', fontFamily: 'inherit', outline: 'none' }} 
             value={text} 
             onChange={(e) => setText(e.target.value)} 
-            placeholder="Paste raw text, knowledge updates, proprietary logs, or internal procedures..." 
+            placeholder="Paste raw text, knowledge updates, logs..." 
+            disabled={!!selectedFile}
           />
-          <button 
-            style={{ marginTop: '14px', padding: '12px 24px', backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: text.trim() ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '14px', opacity: text.trim() && !uploading ? 1 : 0.6, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }} 
-            onClick={handleUpload}
-            disabled={!text.trim() || uploading}
-          >
-            {uploading ? 'Vectorizing...' : 'Upload & Train Database'}
-          </button>
+          
+          <div style={{ textTransform: 'uppercase', fontSize: '11px', color: '#94a3b8', fontWeight: '700', letterSpacing: '0.05em', textAlign: 'center', marginBottom: '12px' }}>— OR —</div>
+
+          <div style={{ padding: '16px', border: '2px dashed #cbd5e1', borderRadius: '8px', backgroundColor: '#f8fafc', textAlign: 'center', marginBottom: '14px' }}>
+            <input 
+              id="filePicker"
+              type="file" 
+              accept=".pdf" 
+              onChange={(e) => setSelectedFile(e.target.files[0])}
+              style={{ fontSize: '14px', color: '#475569' }}
+              disabled={!!text.trim()}
+            />
+          </div>
+
+          {selectedFile ? (
+            <button 
+              style={{ padding: '12px 24px', backgroundColor: '#7c3aed', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '14px', boxShadow: '0 2px 4px rgba(124, 58, 237, 0.2)' }} 
+              onClick={handleFileUpload}
+              disabled={uploading}
+            >
+              {uploading ? 'Parsing PDF Structural Layout...' : 'Upload & Process PDF File'}
+            </button>
+          ) : (
+            <button 
+              style={{ padding: '12px 24px', backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: text.trim() ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '14px', opacity: text.trim() && !uploading ? 1 : 0.6, boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)' }} 
+              onClick={handleTextUpload}
+              disabled={!text.trim() || uploading}
+            >
+              {uploading ? 'Vectorizing...' : 'Upload Text Snippet'}
+            </button>
+          )}
           
           {message && (
             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: message.includes('❌') ? '#fef2f2' : '#f0f9ff', padding: '12px 16px', borderRadius: '8px', marginTop: '16px', borderLeft: `4px solid ${message.includes('❌') ? '#ef4444' : '#0284c7'}` }}>
@@ -118,8 +176,8 @@ function App() {
           )}
         </div>
 
-        {/* Section 2: Retrieval UI Card */}
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '28px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)' }}>
+        {/* Card 2: Retrieval Engine UI */}
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', padding: '28px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
           <h3 style={{ marginTop: 0, fontSize: '18px', fontWeight: '700', color: '#334155', marginBottom: '16px' }}>
             2. Run Real-Time Pipeline Queries
           </h3>
@@ -133,7 +191,7 @@ function App() {
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
             <button 
-              style={{ padding: '0 28px', backgroundColor: '#10b981', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: query.trim() ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '14px', opacity: query.trim() && !loading ? 1 : 0.6, transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)' }} 
+              style={{ padding: '0 28px', backgroundColor: '#10b981', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: query.trim() ? 'pointer' : 'not-allowed', fontWeight: '600', fontSize: '14px', opacity: query.trim() && !loading ? 1 : 0.6, boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)' }} 
               onClick={handleSearch}
               disabled={!query.trim() || loading}
             >
@@ -141,7 +199,6 @@ function App() {
             </button>
           </div>
 
-          {/* AI Response Display Area */}
           <h4 style={{ marginTop: '32px', marginBottom: '10px', fontSize: '15px', fontWeight: '700', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             🤖 AI Synthesis Output
           </h4>
@@ -156,7 +213,6 @@ function App() {
             </div>
           )}
 
-          {/* Context Sources Attribution Box */}
           {results.sources.length > 0 && (
             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
               <h5 style={{ marginTop: 0, marginBottom: '10px', fontSize: '13px', fontWeight: '700', color: '#64748b' }}>
@@ -166,7 +222,7 @@ function App() {
                 {results.sources.map((source, idx) => (
                   <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#334155', lineHeight: '1.5' }}>
                     <span style={{ fontWeight: '700', color: '#94a3b8', marginRight: '6px' }}>[{idx + 1}]</span>
-                    {source}
+                    {source.substring(0, 400)}{source.length > 400 ? '...' : ''}
                   </div>
                 ))}
               </div>
