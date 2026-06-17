@@ -4,18 +4,16 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from qdrant_client import QdrantClient # pyright: ignore[reportMissingImports]
-from qdrant_client.http import models # pyright: ignore[reportMissingImports]
+from qdrant_client.http import models  # pyright: ignore[reportMissingImports] # Ensured compatibility import
 from pypdf import PdfReader # pyright: ignore[reportMissingImports]
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-# Load secret tokens out of local environment configuration file
 load_dotenv()
 
 app = FastAPI(title="Document Sandbox Engine (Gemini + Qdrant)")
 
-# Configure CORS so your frontend development pipeline can securely pass assets
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,21 +22,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Pull environment cluster routing flags
 QDRANT_URL = os.getenv("QDRANT_HOST")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 COLLECTION_NAME = "knowledge_base"
 
-# Ensure all variables are bound
-if not all([QDRANT_URL, QDRANT_API_KEY, GEMINI_API_KEY]):
-    print("⚠️ CRITICAL WARNING: Please verify that your .env file contains valid host and authorization keys!")
-
-# Instantiate engine clients
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 genai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# 🛠️ Structural Payload Indexing Setup
 try:
     qdrant_client.create_payload_index(
         collection_name=COLLECTION_NAME,
@@ -50,7 +41,27 @@ except Exception as e:
     pass
 
 
-# Pydantic Schemas mapping incoming application JSON packets
+# 👇 NEW HELPER FUNCTION: SLIDING WINDOW CHUNKING
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> list[str]:
+    """Splits a long string of text into smaller overlapping segments."""
+    chunks = []
+    if not text:
+        return chunks
+        
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunks.append(text[start:end])
+        # Move the window forward by chunk_size minus the overlap
+        start += chunk_size - overlap
+        
+        # Guard against infinite loops if sizes are misconfigured
+        if chunk_size <= overlap:
+            break
+            
+    return chunks
+
+
 class DocumentInput(BaseModel):
     text: str
     session_id: str
@@ -60,21 +71,27 @@ class QueryInput(BaseModel):
     session_id: str
 
 
-# Endpoint A: Pure Plain-Text Uploads
+# Endpoint A: Plain-Text Uploads (Now with Chunking!)
 @app.post("/upload")
 async def upload_document(doc: DocumentInput):
     try:
+        # Split text into bite-sized paragraphs
+        text_chunks = chunk_text(doc.text)
+        
+        # Create matching metadata lists for every single chunk
+        metadata_list = [{"session_id": doc.session_id} for _ in text_chunks]
+        
         qdrant_client.add(
             collection_name=COLLECTION_NAME,
-            documents=[doc.text],
-            metadata=[{"session_id": doc.session_id}]
+            documents=text_chunks,
+            metadata=metadata_list
         )
-        return {"status": "success", "message": "Text data fragment bound successfully."}
+        return {"status": "success", "message": f"Text fragmented into {len(text_chunks)} chunks and bound successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Endpoint B: Multi-page Binary PDF Parsing
+# Endpoint B: Multi-page Binary PDF Parsing (Now with Chunking!)
 @app.post("/upload-file")
 async def upload_file(
     file: UploadFile = File(...),
@@ -84,7 +101,6 @@ async def upload_file(
         if not file.filename.lower().endswith('.pdf'):
             raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a standard PDF.")
 
-        # Stream binary bytes into reader memory
         contents = await file.read()
         pdf_file = io.BytesIO(contents)
         reader = PdfReader(pdf_file)
@@ -98,26 +114,29 @@ async def upload_file(
         if not extracted_text.strip():
             raise HTTPException(status_code=400, detail="This PDF contains no machine-readable text characters.")
 
-        # Ingest parsed structural contents under session key
+        # 👇 Chunk the entire extracted book/paper text string
+        text_chunks = chunk_text(extracted_text)
+        metadata_list = [{"session_id": session_id} for _ in text_chunks]
+
+        # Ingest chunks collectively
         qdrant_client.add(
             collection_name=COLLECTION_NAME,
-            documents=[extracted_text],
-            metadata=[{"session_id": session_id}]
+            documents=text_chunks,
+            metadata=metadata_list
         )
 
         return {
             "status": "success", 
-            "message": f"Successfully parsed and vectorized {len(reader.pages)} pages from {file.filename}."
+            "message": f"Successfully parsed {len(reader.pages)} pages and split into {len(text_chunks)} searchable vectors."
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Endpoint C: Isolated RAG Retrieval and Synthesis Engine
+# Endpoint C: Isolated RAG Retrieval and Synthesis Engine (Stays identical)
 @app.post("/query")
 async def query_and_generate(query: QueryInput):
     try:
-        # 1. RETRIEVAL: Pull vectors matching user's specific session token
         search_results = qdrant_client.query(
             collection_name=COLLECTION_NAME,
             query_text=query.text,
@@ -129,7 +148,7 @@ async def query_and_generate(query: QueryInput):
                     )
                 ]
             ),
-            limit=3
+            limit=3  # Will now pull the top 3 most relevant chunks instead of whole documents!
         )
         
         retrieved_contexts = [point.document for point in search_results if point.document]
@@ -138,7 +157,6 @@ async def query_and_generate(query: QueryInput):
         if not retrieved_contexts:
             context_str = "No specific reference documents found inside this isolated canvas environment."
 
-        # 2. GENERATION: Inject factual guardrails to Gemini
         system_instruction = (
             "You are a precise, technical AI sandbox assistant. Answer the user's prompt query "
             "using ONLY the localized context provided below. If the answer cannot be determined "
@@ -160,5 +178,26 @@ async def query_and_generate(query: QueryInput):
             "answer": response.text, 
             "sources": retrieved_contexts
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# Add this endpoint alongside your other routing blocks in main.py
+@app.post("/clear-session")
+async def clear_session_data(query: QueryInput):
+    try:
+        qdrant_client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="session_id",
+                            match=models.MatchValue(value=query.session_id),
+                        )
+                    ]
+                )
+            ),
+        )
+        return {"status": "success", "message": "All session data points cleared simultaneously."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

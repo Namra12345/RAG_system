@@ -36,7 +36,7 @@ function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage('✨ Context successfully vectorized and isolated to your current session!');
+        setMessage(data.message || '✨ Context successfully isolated to your current session!');
         setText('');
       } else {
         setMessage(`❌ Error: ${data.detail || 'Failed to parse inputs.'}`);
@@ -65,7 +65,7 @@ function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage(`✨ Successfully vectorized and indexed file metadata context!`);
+        setMessage(data.message || `✨ Successfully vectorized and indexed file metadata context!`);
         setSelectedFile(null);
         document.getElementById("filePicker").value = "";
       } else {
@@ -78,7 +78,33 @@ function App() {
     }
   };
 
-  // Action 3: RAG Synthesis Pipeline Execution
+  // Action 3: Bulk Delete Session Vectors
+  const handleClearSession = async () => {
+    if (!window.confirm("Are you sure you want to completely clear all data points from this session canvas?")) return;
+    setLoading(true);
+    setMessage('Wiping session vectors...');
+    try {
+      const res = await fetch(`${API_URL}/clear-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '', session_id: sessionId })
+      });
+      if (res.ok) {
+        setMessage('🧹 All session data deleted! Canvas is fresh and empty.');
+        setResults({ answer: '', sources: [] });
+        setText('');
+        setSelectedFile(null);
+      } else {
+        alert('Failed to execute bulk deletion on cluster.');
+      }
+    } catch (err) {
+      alert('Network error trying to clear session.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Action 4: RAG Synthesis Pipeline Execution
   const handleSearch = async () => {
     if (!query.trim()) return;
     setLoading(true);
@@ -113,11 +139,21 @@ function App() {
           <h1 style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0', letterSpacing: '-0.025em' }}>
             ⚡ Light-RAG Sandbox
           </h1>
-          <p style={{ fontSize: '15px', color: '#64748b', margin: 0, fontWeight: '500' }}>
+          <p style={{ fontSize: '15px', color: '#64748b', margin: '0 0 16px 0', fontWeight: '500' }}>
             Gemini 2.5 Flash + Qdrant Cloud Cluster Engine
           </p>
-          <div style={{ display: 'inline-block', marginTop: '14px', padding: '6px 12px', backgroundColor: '#e2e8f0', borderRadius: '20px', fontSize: '12px', fontWeight: '600', color: '#475569' }}>
-            Active Sandbox Token: <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>{sessionId ? sessionId.substring(0, 8) + '...' : 'initializing'}</span>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ padding: '6px 12px', backgroundColor: '#e2e8f0', borderRadius: '20px', fontSize: '12px', fontWeight: '600', color: '#475569' }}>
+              Active Sandbox Token: <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>{sessionId ? sessionId.substring(0, 8) + '...' : 'initializing'}</span>
+            </div>
+            <button 
+              onClick={handleClearSession}
+              style={{ padding: '6px 14px', backgroundColor: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', borderRadius: '20px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
+              onMouseEnter={(e) => e.target.style.backgroundColor = '#fecaca'}
+              onMouseLeave={(e) => e.target.style.backgroundColor = '#fee2e2'}
+            >
+              🗑️ Clear Canvas Data
+            </button>
           </div>
         </header>
 
