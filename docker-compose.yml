@@ -2,18 +2,23 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - QDRANT_HOST=https://YOUR_CLUSTER_ID.us-east.aws.cloud.qdrant.io:6333
-      - QDRANT_API_KEY=YOUR_ACTUAL_QDRANT_API_KEY
+      - QDRANT_HOST=${QDRANT_HOST}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: always
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "5173:5173"
+    restart: always
     depends_on:
       - backend
-    restart: always

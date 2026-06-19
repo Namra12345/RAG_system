@@ -1,14 +1,17 @@
-# Stage 1: Build static assets using Node
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
+# Use an official Node runtime environment to compile assets
+FROM node:20-alpine
 
-# Stage 2: Serve compiled assets via Nginx
-FROM nginx:stable-alpine
-# Vite outputs to 'dist' folder
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+WORKDIR /app
+
+# Copy package configurations first to optimize caching speeds
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+# Expose the Vite development/preview network port
+EXPOSE 5173
+
+# Run the frontend application
+CMD ["npm", "run", "dev", "--", "--host"]
