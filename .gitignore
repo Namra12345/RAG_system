@@ -216,3 +216,25 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+*.pem
+
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# 4. Terraform Directory & Provider Binaries
+.terraform/
+.terraform.lock.hcl
+
+# 5. OS and Editor Files
+.DS_Store
+.vscode/
+.idea/
