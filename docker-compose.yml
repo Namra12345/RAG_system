@@ -2,23 +2,27 @@ version: '3.8'
 
 services:
   backend:
+    image: <YOUR_AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/rag-app-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
+    container_name: rag-backend
+    restart: always
     ports:
       - "8000:8000"
-    environment:
-      - QDRANT_HOST=${QDRANT_HOST}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    restart: always
+    env_file:
+      - .env
 
   frontend:
+    image: <YOUR_AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/rag-app-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
+    container_name: rag-frontend
     restart: always
+    ports:
+      - "80:5173"
     depends_on:
       - backend
+    environment:
+      - VITE_API_URL=http://54.80.206.58:8000
