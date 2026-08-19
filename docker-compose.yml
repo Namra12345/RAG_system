@@ -3,9 +3,6 @@ version: '3.8'
 services:
   backend:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/rag-app-backend:latest
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
     container_name: rag-backend
     restart: always
     ports:
@@ -15,9 +12,6 @@ services:
 
   frontend:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/rag-app-frontend:latest
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
     container_name: rag-frontend
     restart: always
     ports:
