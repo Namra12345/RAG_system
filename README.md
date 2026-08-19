@@ -1,1 +1,1 @@
-# RAG_system
+# RAG_system deployed using DevOps practice
