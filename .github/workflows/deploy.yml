@@ -61,6 +61,6 @@ jobs:
             cd ~/app
             export AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
-            AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID} docker-compose pull
-            AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID} docker-compose up -d --remove-orphans
+            AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID} docker compose pull
+            AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID} docker compose up -d --remove-orphans --force-recreate
             docker image prune -f
