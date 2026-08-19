@@ -1,14 +1,9 @@
-name: CI/CD Pipeline - Build, Push & Deploy RAG App
+name: CI/CD Deployment Pipeline
 
 on:
   push:
     branches:
       - main
-
-env:
-  AWS_REGION: us-east-1
-  ECR_FRONTEND_REPO: rag-app-frontend
-  ECR_BACKEND_REPO: rag-app-backend
 
 jobs:
   build-and-deploy:
@@ -23,25 +18,38 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: us-east-1
 
       - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Backend Image
+      - name: Build, Tag, and Push Backend Image
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: rag-app-backend
+          IMAGE_TAG: latest
         run: |
-          docker build -t $REGISTRY/$ECR_BACKEND_REPO:latest ./backend
-          docker push $REGISTRY/$ECR_BACKEND_REPO:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./backend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Build and Push Frontend Image
+      - name: Build, Tag, and Push Frontend Image
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: rag-app-frontend
+          IMAGE_TAG: latest
         run: |
-          docker build -t $REGISTRY/$ECR_FRONTEND_REPO:latest ./frontend
-          docker push $REGISTRY/$ECR_FRONTEND_REPO:latest
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./frontend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Copy docker-compose.yml to EC2 Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "~/app"
 
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -51,7 +59,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/app
-            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
-            docker-compose pull
-            docker-compose up -d
+            export AWS_ACCOUNT_ID="${{ secrets.AWS_ACCOUNT_ID }}"
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+            AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID} docker-compose pull
+            AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID} docker-compose up -d --remove-orphans
             docker image prune -f

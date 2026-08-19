@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: <YOUR_AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/rag-app-backend:latest
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/rag-app-backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -14,7 +14,7 @@ services:
       - .env
 
   frontend:
-    image: <YOUR_AWS_ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/rag-app-frontend:latest
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/rag-app-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
