@@ -1,4 +1,4 @@
-# RAG System Deployed with DevOps Practices
+# RAG System Deployed With DevOps Practices
 
 This project is a Retrieval-Augmented Generation (RAG) application built as a full-stack system with a frontend, backend API, vector database, and AI-powered answer generation. The solution is designed to demonstrate standard DevOps practices including containerization, infrastructure-as-code, AWS provisioning, and deployment automation.
 
